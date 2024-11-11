@@ -82,7 +82,7 @@ def ucs(field):
     visited = set()
 
     while len(queue) > 0:
-        queue.sort()  # مرتب‌سازی دستی برای پیدا کردن کم‌هزینه‌ترین مسیر
+        queue.sort()
         current_cost, current_pos, path = queue.pop(0)
         if current_pos in field.goals:
             return path, current_cost, len(visited)
@@ -108,7 +108,7 @@ def a_star(field):
     visited = set()
 
     while len(queue) > 0:
-        queue.sort()  # مرتب‌سازی دستی
+        queue.sort()
         f_cost, current_pos, g_cost, path = queue.pop(0)
         if current_pos in field.goals:
             return path, g_cost, len(visited)
@@ -127,6 +127,85 @@ def a_star(field):
     return None, float('inf'), len(visited)
 
 
+def best_first_search(field):
+    def heuristic(pos):
+        return min(abs(pos[0] - g[0]) + abs(pos[1] - g[1]) for g in field.goals)
+
+    queue = [(0, field.player_pos, [])]
+    visited = set()
+
+    while len(queue) > 0:
+        queue.sort()
+        h_cost, current_pos, path = queue.pop(0)
+        if current_pos in field.goals:
+            return path, len(path), len(visited)
+
+        if current_pos in visited:
+            continue
+        visited.add(current_pos)
+
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            new_x, new_y = current_pos[0] + dx, current_pos[1] + dy
+            if field.is_valid_move(new_x, new_y):
+                queue.append((heuristic((new_x, new_y)), (new_x, new_y), path + [(dx, dy)]))
+
+    return None, float('inf'), len(visited)
+
+
+def ida_star(field):
+    def heuristic(pos):
+        return min(abs(pos[0] - g[0]) + abs(pos[1] - g[1]) for g in field.goals)
+
+    def search(path, g_cost, bound):
+        current_pos = path[-1]
+        f_cost = g_cost + heuristic(current_pos)
+        if f_cost > bound:
+            return f_cost
+        if current_pos in field.goals:
+            return path, g_cost
+
+        min_cost = float('inf')
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            new_x, new_y = current_pos[0] + dx, current_pos[1] + dy
+            if field.is_valid_move(new_x, new_y) and (new_x, new_y) not in path:
+                path.append((new_x, new_y))
+                result = search(path, g_cost + field.move_cost(new_x, new_y), bound)
+                if isinstance(result, tuple):
+                    return result
+                min_cost = min(min_cost, result)
+                path.pop()
+
+        return min_cost
+
+    bound = heuristic(field.player_pos)
+    path = [field.player_pos]
+    while True:
+        result = search(path, 0, bound)
+        if isinstance(result, tuple):
+            return result[0], result[1], len(path)
+        if result == float('inf'):
+            return None, float('inf'), len(path)
+        bound = result
+
+
+def print_results(algo_name, path, total_cost, search_depth):
+    if len(path) > 50:
+        path_to_print = path[:50]
+        print(f"{algo_name} Path (first 50 moves):", path_to_print, "...")
+    else:
+        print(f"{algo_name} Path:", path)
+
+    print("Total Cost:", total_cost)
+    print("Search Depth:", search_depth)
+    print("-" * 40)
+
+
+def test_algorithms(field, algorithms):
+    for algo in algorithms:
+        path, total_cost, search_depth = algo(field)
+        print_results(algo.__name__, path, total_cost, search_depth)
+
+
 if __name__ == "__main__":
     grid = [
         ['1', 'P', '1', '1', '0', 'X', '1', '1', '1', '1'],
@@ -137,11 +216,6 @@ if __name__ == "__main__":
         ['1', '1', '1', '1', '1', 'G', '1', '1', '1', '1']
     ]
     field = IceHockeyField(grid)
-    algorithms = [bfs, dfs, ucs, a_star]
+    algorithms = [bfs, dfs, ucs, a_star, best_first_search, ida_star]
 
-    for algo in algorithms:
-        path, total_cost, search_depth = algo(field)
-        print(f"{algo.__name__} Path:", path)
-        print("Total Cost:", total_cost)
-        print("Search Depth:", search_depth)
-        print("-" * 40)
+    test_algorithms(field, algorithms)
